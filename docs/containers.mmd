@@ -1,0 +1,54 @@
+%%{init: {"flowchart": {"curve": "step", "nodeSpacing": 100, "rankSpacing": 140, "padding": 20}, "theme": "default"}}%%
+flowchart TB
+  %% C4 Container: люди, внешние системы, приложения и хранилища.
+  classDef person fill:#08427b,color:#fff,stroke:#052e56
+  classDef external fill:#666,color:#fff,stroke:#444
+  classDef container fill:#438dd5,color:#fff,stroke:#2165a5
+  classDef database fill:#dcecff,color:#123,stroke:#2165a5
+    buyer["<b>Покупатель</b><br/>[Человек]<br/>Просматривает ленту и оформляет заказы"]:::person
+    seller["<b>Продавец</b><br/>[Человек]<br/>Управляет своими товарами"]:::person
+    psp["<b>Платёжный провайдер</b><br/>[Внешняя система]<br/>Оплата и возвраты"]:::external
+    delivery["<b>Провайдер уведомлений</b><br/>[Внешняя система]<br/>Email и push"]:::external
+  subgraph marketplace["Маркетплейс — C4 Container"]
+    direction TB
+    web["<b>Web-приложение</b><br/>[Контейнер: TypeScript / React]<br/>Интерфейс покупателя и продавца"]:::container
+    gateway["<b>API Gateway</b><br/>[Контейнер: Nginx]<br/>Маршрутизация, проверка токена, ограничение запросов"]:::container
+    users["<b>Users</b><br/>[Контейнер: Python / HTTP API]<br/>Профили, роли, аутентификация"]:::container
+    catalog["<b>Catalog</b><br/>[Контейнер: Python / HTTP API]<br/>Товары, цены, доступное количество, резервы"]:::container
+    feed["<b>Feed</b><br/>[Контейнер: Python / HTTP API]<br/>Персонализированная лента"]:::container
+    orders["<b>Orders</b><br/>[Контейнер: Python / HTTP API]<br/>Заказы и координация оформления"]:::container
+    payments["<b>Payments</b><br/>[Контейнер: Python / HTTP API]<br/>Расчёт платежей, учёт и интеграция с PSP"]:::container
+    notifications["<b>Notifications</b><br/>[Контейнер: Python / worker]<br/>Уведомления о статусах"]:::container
+    bus["<b>Брокер событий</b><br/>[Контейнер: RabbitMQ]<br/>Доставка событий с повторами"]:::container
+    usersdb[("<b>Users DB</b><br/>[Хранилище: PostgreSQL]<br/>Профили, роли, хеши паролей")]:::database
+    catalogdb[("<b>Catalog DB</b><br/>[Хранилище: PostgreSQL]<br/>Товары, цены, остатки, резервы, outbox")]:::database
+    feeddb[("<b>Feed DB</b><br/>[Хранилище: PostgreSQL]<br/>Проекция каталога, предпочтения, история просмотров")]:::database
+    ordersdb[("<b>Orders DB</b><br/>[Хранилище: PostgreSQL]<br/>Заказы, снимки позиций, outbox")]:::database
+    paymentsdb[("<b>Payments DB</b><br/>[Хранилище: PostgreSQL]<br/>Платежи, возвраты, журнал операций, outbox")]:::database
+    notificationsdb[("<b>Notifications DB</b><br/>[Хранилище: PostgreSQL]<br/>Шаблоны, задания, попытки отправки")]:::database
+  end
+  buyer -->|"Использует<br/>HTTPS"| web
+  seller -->|"Использует<br/>HTTPS"| web
+  web -->|"Запросы<br/>HTTPS / JSON, синхронно"| gateway
+  gateway -->|"Профиль и вход<br/>HTTP / JSON, синхронно"| users
+  gateway -->|"Управление товарами<br/>HTTP / JSON, синхронно"| catalog
+  gateway -->|"Лента и просмотры<br/>HTTP / JSON, синхронно"| feed
+  gateway -->|"Оформление и статус<br/>HTTP / JSON, синхронно"| orders
+  orders -->|"Проверка цены и резерв; снятие резерва<br/>HTTP / JSON, синхронно"| catalog
+  orders -->|"Создание платежа и возврата<br/>HTTP / JSON, синхронно"| payments
+  payments -->|"Создание оплаты / возврата<br/>HTTPS, синхронно"| psp
+  psp -.->|"Подтверждение операции<br/>HTTPS webhook, асинхронно"| payments
+  catalog -.->|"ProductChanged<br/>AMQP, асинхронно"| bus
+  orders -.->|"OrderStatusChanged<br/>AMQP, асинхронно"| bus
+  payments -.->|"PaymentSucceeded / PaymentFailed / RefundSucceeded<br/>AMQP, асинхронно"| bus
+  bus -.->|"Изменения товаров<br/>AMQP, асинхронно"| feed
+  bus -.->|"Результаты платежей<br/>AMQP, асинхронно"| orders
+  bus -.->|"Статусы заказов<br/>AMQP, асинхронно"| notifications
+  notifications -->|"Контакты и настройки<br/>HTTP / JSON, синхронно"| users
+  notifications -->|"Отправка<br/>HTTPS, синхронно"| delivery
+  users -->|"Читает / пишет<br/>SQL"| usersdb
+  catalog -->|"Читает / пишет<br/>SQL"| catalogdb
+  feed -->|"Читает / пишет<br/>SQL"| feeddb
+  orders -->|"Читает / пишет<br/>SQL"| ordersdb
+  payments -->|"Читает / пишет<br/>SQL"| paymentsdb
+  notifications -->|"Читает / пишет<br/>SQL"| notificationsdb
