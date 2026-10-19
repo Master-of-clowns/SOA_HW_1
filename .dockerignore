@@ -1,6 +1,5 @@
 .git
-__pycache__
-*.pyc
-docs
-tests
-README.md
+.env
+**/__pycache__
+**/*.pyc
+service/generated

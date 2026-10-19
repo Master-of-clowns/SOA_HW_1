@@ -1,11 +1,42 @@
+name: marketplace-homework
 services:
-  catalog:
-    build: .
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: marketplace
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-homework-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketplace -d marketplace"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build:
+      context: .
+      target: migrations
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/marketplace
+      FLYWAY_USER: marketplace
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-local-homework-password}
+  api:
+    image: marketplace-homework-api
+    build:
+      context: .
+      target: api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://marketplace:${POSTGRES_PASSWORD:-local-homework-password}@db:5432/marketplace
+      JWT_SECRET: ${JWT_SECRET:-local-homework-signing-key-change-before-production-2026}
+      ORDER_RATE_MINUTES: ${ORDER_RATE_MINUTES:-1}
     ports:
-      - "127.0.0.1:8000:8000"
-    restart: unless-stopped
-    read_only: true
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+volumes:
+  postgres_data:
