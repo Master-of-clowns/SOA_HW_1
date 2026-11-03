@@ -94,28 +94,6 @@ Circuit breaker общий для вызовов клиента: CLOSED → OPEN
 
 `GRPC_API_KEY` и `DB_PASSWORD` задаются окружением; значения по умолчанию в Compose — локальные учебные.
 
-## Показать на защите
-
-```sh
-# Данные разных сервисов — в разных БД:
-docker compose exec flight-db psql -U app -d app -c 'SELECT id,available_seats FROM flights;'
-docker compose exec flight-db psql -U app -d app -c 'SELECT * FROM seat_reservations;'
-docker compose exec booking-db psql -U app -d app -c 'SELECT * FROM bookings;'
-# Кеш и переходы breaker:
-docker compose logs flight booking
-# Остановка Flight: повторные запросы REST дают 503 и открывают circuit.
-docker compose stop flight
-docker compose start flight
-# Через 10 секунд следующий вызов пробует восстановить соединение.
-# Узнать текущий мастер Redis:
-docker compose exec sentinel-1 redis-cli -p 26379 SENTINEL get-master-addr-by-name flights
-```
-
-Для failover остановите сервис, который Sentinel показал мастером (`redis-master` либо `redis-replica`), повторите поиск и запрос адреса мастера. Затем верните сервис через `docker compose start <имя>` — Sentinel подключит его как реплику.
-
-## Проверено 3 ноября 2026
-
-Пройдены: E2E, все gRPC-методы без/с неверным ключом, гонка за последнее место, повторные резервы и отмены, снимок цены, ошибки БД с компенсацией, падение и восстановление Booking, TTL/инвалидация кеша, точное число retry, реальные переходы circuit breaker, переключение Redis на реплику и возврат бывшего мастера. В итоговой конфигурации все постоянные контейнеры healthy; Flyway завершился с кодом 0.
 
 ## ER и 3NF
 
