@@ -1,0 +1,68 @@
+syntax = "proto3";
+package flights;
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// All methods require x-api-key metadata. Missing/wrong key: UNAUTHENTICATED.
+// Malformed input: INVALID_ARGUMENT. Database outage: UNAVAILABLE.
+service FlightService {
+  rpc SearchFlights(SearchRequest) returns (FlightList);
+  rpc GetFlight(FlightId) returns (Flight); // NOT_FOUND
+  // RESOURCE_EXHAUSTED: not enough seats; FAILED_PRECONDITION: not scheduled/released.
+  // Same booking_id + same parameters is idempotent; changed parameters: ALREADY_EXISTS.
+  rpc ReserveSeats(ReserveRequest) returns (Reservation);
+  // Idempotent, including unknown IDs: prevents a late ReserveSeats for that booking_id.
+  rpc ReleaseReservation(BookingId) returns (google.protobuf.Empty);
+  rpc UpdateFlight(UpdateRequest) returns (Flight); // NOT_FOUND
+}
+enum FlightStatus {
+  FLIGHT_STATUS_UNSPECIFIED = 0;
+  SCHEDULED = 1;
+  DEPARTED = 2;
+  CANCELLED = 3;
+  COMPLETED = 4;
+}
+enum ReservationStatus {
+  RESERVATION_STATUS_UNSPECIFIED = 0;
+  ACTIVE = 1;
+  RELEASED = 2;
+  EXPIRED = 3;
+}
+message FlightId { string id = 1; }
+message BookingId { string booking_id = 1; }
+message SearchRequest {
+  string origin = 1;
+  string destination = 2;
+  google.protobuf.Timestamp date = 3; // Optional UTC calendar date, time must be midnight.
+}
+message Flight {
+  string id = 1;
+  string flight_number = 2;
+  string airline_code = 3;
+  string airline_name = 4;
+  string origin = 5;
+  string destination = 6;
+  google.protobuf.Timestamp departure_at = 7;
+  google.protobuf.Timestamp arrival_at = 8;
+  int32 total_seats = 9;
+  int32 available_seats = 10;
+  string price = 11; // Exact RUB decimal, e.g. "4500.00"; never binary float.
+  FlightStatus status = 12;
+}
+message FlightList { repeated Flight flights = 1; }
+message ReserveRequest {
+  string flight_id = 1;
+  int32 seat_count = 2;
+  string booking_id = 3;
+}
+message Reservation {
+  string booking_id = 1;
+  string flight_id = 2;
+  int32 seat_count = 3;
+  ReservationStatus status = 4;
+}
+message UpdateRequest {
+  string flight_id = 1;
+  string price = 2;
+  FlightStatus status = 3;
+}

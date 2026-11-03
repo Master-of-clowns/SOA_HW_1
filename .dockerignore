@@ -1,5 +1,4 @@
 .git
 .env
-**/__pycache__
-**/*.pyc
-service/generated
+__pycache__
+*_pb2*.py
